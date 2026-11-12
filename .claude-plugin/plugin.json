@@ -1,7 +1,7 @@
 {
   "name": "cold-email-skills",
   "displayName": "Cold Email Skills",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Free skills for cold email and deliverability: write outreach sequences, audit SPF/DKIM/DMARC, decode bounces and triage replies.",
   "author": {
     "name": "MailBeast.ai",

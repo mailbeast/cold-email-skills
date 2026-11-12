@@ -1,6 +1,6 @@
 ---
 name: email-deliverability-audit
-description: Audit a sending domain's email authentication (SPF, DKIM, DMARC, MX, MTA-STS, TLS-RPT, BIMI) with a bundled DNS check script, explain every problem in plain language and give the exact DNS record that fixes it. Use when the user asks why emails land in spam, wants to check SPF/DKIM/DMARC, sets up a new domain for cold email or newsletters, or asks whether they meet the Gmail, Yahoo or Microsoft sender requirements.
+description: Audit a sending domain's email authentication (SPF and its 10-lookup limit, DKIM, DMARC, MX, MTA-STS, TLS-RPT, BIMI) by looking up its DNS records, explain every problem in plain language and give the exact DNS record that fixes it. Use when the user asks why emails land in spam, wants to check SPF/DKIM/DMARC, sets up a new domain for cold email or newsletters, or asks whether they meet the Gmail, Yahoo or Microsoft sender requirements.
 ---
 
 # Email deliverability audit
@@ -8,29 +8,53 @@ description: Audit a sending domain's email authentication (SPF, DKIM, DMARC, MX
 Check the DNS of a sending domain, explain what is wrong and hand back records the
 user can paste into their DNS provider.
 
-## 1. Run the check
+## 1. Look up the records
 
-Run the bundled script for every domain the user sends from (the domain after `@` in
-the From address, not the website if they differ):
+Check every domain the user sends from (the domain after `@` in the From address, not
+the website if they differ). Look up these names, shown for `example.com`:
 
-```bash
-python3 scripts/check_domain.py example.com --format text
-python3 scripts/check_domain.py example.com            # JSON, for further processing
-python3 scripts/check_domain.py example.com --selector s1   # add a DKIM selector to check
-```
+| What | Name | Type |
+| --- | --- | --- |
+| MX | `example.com` | MX |
+| SPF | `example.com` | TXT, the record starting with `v=spf1` |
+| DMARC | `_dmarc.example.com` | TXT |
+| DKIM | `<selector>._domainkey.example.com` | TXT (often a CNAME to the mail provider) |
+| MTA-STS | `_mta-sts.example.com` | TXT; the policy is at `https://mta-sts.example.com/.well-known/mta-sts.txt` |
+| TLS-RPT | `_smtp._tls.example.com` | TXT |
+| BIMI | `default._bimi.example.com` | TXT |
 
-The script uses only the Python standard library and DNS-over-HTTPS (Cloudflare,
-falling back to Google), so it needs internet access but no `dig` or packages. It
-exits with code 1 when it finds errors.
+Use whatever the environment allows:
 
-If the user pasted message headers, take the DKIM selector from `s=` in the
-`DKIM-Signature` header and pass it with `--selector`; the script only knows common
-selectors and otherwise reports "no DKIM key found".
+- `dig +short TXT example.com`, `dig +short MX example.com` (or `nslookup -type=TXT example.com`).
+- Without `dig`, DNS over HTTPS:
+  `curl -s -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=example.com&type=TXT'`
+  (or `https://dns.google/resolve?name=example.com&type=TXT`). This sends the domain
+  name to Cloudflare or Google.
+- Without a shell or network access, ask the user to paste the records from their DNS
+  panel.
 
-If you cannot run scripts, look up the same records another way (the user's DNS
-panel, `dig TXT example.com`, `dig TXT _dmarc.example.com`,
-`dig TXT <selector>._domainkey.example.com`, `dig MX example.com`) and apply the
-rules below by hand.
+A TXT value can arrive split into several quoted strings; join them before reading it.
+
+**SPF lookup count.** SPF may use at most 10 DNS lookups (RFC 7208). Each `include:`,
+`a`, `mx`, `ptr`, `exists:` and `redirect=` costs one; `ip4:`, `ip6:` and `all` cost
+none. Follow every `include:` and `redirect=` target, read its SPF record and add its
+lookups to the total. Report the total and the include that adds the most.
+
+**DKIM selectors.** A DKIM key sits under a selector the sender chose. If the user
+pasted message headers, take it from `s=` in the `DKIM-Signature` header. Otherwise
+try the common ones: `google` (Google Workspace), `selector1` and `selector2`
+(Microsoft 365), `k1`, `k2`, `k3` (Mailchimp, Klaviyo), `s1`, `s2` (SendGrid),
+`zoho`, `zmail` (Zoho), `sig1` (iCloud), `pm` (Postmark), `mandrill`, `amazonses`,
+`protonmail`, `default`, `dkim`, `mail`, `smtp`.
+
+- A record with an empty `p=` is a revoked key.
+- Also look up a made-up selector such as `zz-wildcard-probe._domainkey.example.com`.
+  If it returns a key too, the domain has a wildcard DKIM record and keys found under
+  common selectors prove nothing.
+- Finding no key under common selectors does not prove DKIM is missing; say so and ask
+  for the header of a sent message.
+- Key size: a `p=` value of about 216 base64 characters is a 1024-bit key, about 392 a
+  2048-bit key.
 
 ## 2. Explain the results
 

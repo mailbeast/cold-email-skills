@@ -10,7 +10,7 @@
       "name": "cold-email-skills",
       "source": "./",
       "description": "Write cold email sequences, audit SPF/DKIM/DMARC, decode bounces and triage replies.",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "homepage": "https://mailbeast.ai",
       "category": "productivity"
     }
