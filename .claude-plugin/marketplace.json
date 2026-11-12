@@ -1,0 +1,18 @@
+{
+  "name": "mailbeast-skills",
+  "owner": {
+    "name": "MailBeast.ai",
+    "email": "support@mailbeast.ai"
+  },
+  "description": "Free cold email and deliverability skills from MailBeast.ai.",
+  "plugins": [
+    {
+      "name": "cold-email-skills",
+      "source": "./",
+      "description": "Write cold email sequences, audit SPF/DKIM/DMARC, decode bounces and triage replies.",
+      "version": "1.0.0",
+      "homepage": "https://mailbeast.ai",
+      "category": "productivity"
+    }
+  ]
+}
